@@ -152,15 +152,15 @@ The following figures summarize signal analysis and model performance. All image
 
 ### Figure 1: STFT Spectrogram
 STFT spectrogram (0–8000 Hz) of representative recording `paper_full1.m4a`.
-![Figure 1](figures/spectrogram.png)
+![Figure 1](figures/spectrogram_report.png)
 
 ### Figure 2: Pitch Analysis over Time
 Pitch change over time for `paper_full1.m4a`. Shaded regions mark start, middle, and end segments used for temporal feature extraction.
-![Figure 2](figures/pitch.png)
+![Figure 2](figures/pitch_over_time.png)
 
 ### Figure 3: Model Performance Metrics
 Model performance metrics from 5-fold CV. Accuracy: 90.0% (45/50 correct).
-![Figure 3](figures/metrics.png)
+![Figure 3](figures/results_metrics.png)
 
 ### Figure 4: Confusion Matrix Heatmap
 Confusion matrix heatmap from 5-fold cross-validation. Accuracy: 90.0% (45/50 correct).
@@ -168,7 +168,7 @@ Confusion matrix heatmap from 5-fold cross-validation. Accuracy: 90.0% (45/50 co
 
 ### Figure 5: Top 10 Feature Importances
 Top 10 MFCC-related feature importances (Random Forest). Temporal segment MFCCs rank highest.
-![Figure 5](figures/feature_importance.png)
+![Figure 5](figures/mfcc_feature_importance.png)
 
 ## 9. Insights and Conclusions
 
@@ -192,5 +192,15 @@ This project demonstrates a complete classical machine learning workflow for aud
 * `audio_features.csv` — Extracted features for 50 recordings (105 features)
 * `full_half_classifier.joblib` — Trained model
 * `figures/` — Generated PNG visualizations (spectrogram, pitch, metrics, confusion matrix, importance)
+* `report.md` — Detailed markdown report
+* **Core Libraries:** `librosa`, `scikit-learn`, `pandas`, `matplotlib`, `seaborn`### References and Project Files
+* `train_classifier.py` — Main pipeline script
+* `audio_features.csv` — Extracted features for 50 recordings (105 features)
+* `full_half_classifier.joblib` — Trained model
+* `figures/spectrogram_report.png` — Generated STFT Spectrogram visualization
+* `figures/pitch_over_time.png` — Generated Pitch Analysis over time visualization
+* `figures/results_metrics.png` — Generated Model Performance Metrics visualization
+* `figures/confusion_matrix.png` — Generated Confusion Matrix Heatmap visualization
+* `figures/mfcc_feature_importance.png` — Generated Top 10 Feature Importances visualization
 * `report.md` — Detailed markdown report
 * **Core Libraries:** `librosa`, `scikit-learn`, `pandas`, `matplotlib`, `seaborn`
