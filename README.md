@@ -25,3 +25,9 @@ The project pipeline processes raw audio files through several advanced engineer
 ## ?? Academic Credits 
 * **Author:** Saja Sharkia 
 * **Project Status:** Completed - Final Academic Submission (2026). 
+ 
+## ?? Updated Vessel Classification 
+The dataset successfully includes the updated acoustic categories: 
+* **Hard Plastic Cup** - Formed plastic cup with complex resonant modes. 
+* **Thin Plastic Cup** - Lightweight thin-walled plastic cup with high-frequency modes. 
+ 
