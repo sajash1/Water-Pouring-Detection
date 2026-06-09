@@ -1,3 +1,8 @@
+
+![Uploading setup.png.png…]()
+
+
+
 # Water Pouring Detection Using Classical Machine Learning
 
 ## Project Overview
