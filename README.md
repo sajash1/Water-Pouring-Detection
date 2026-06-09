@@ -1,16 +1,20 @@
-## ?? Audio Classification Classes 
-The acoustic models are trained to classify water pouring into 5 distinct target classes based on audio recording signatures: 
-* `paper_pouring` - Audio events recorded using the paper cup. 
-* `glass_pouring` - Audio events recorded using the faceted glass tumbler. 
-* `thermos_pouring` - Audio events recorded using the insulated green thermos. 
-* `large_plastic_pouring` - Audio events recorded using the large clear plastic cup. 
-* `small_plastic_pouring` - Audio events recorded using the thin small plastic cup. 
+# ?? Water Pouring Detection and Classification 
+ 
+An advanced academic engineering project utilizing audio signal processing and machine learning models to automatically detect and classify water pouring events. 
  
 ## ?? Methodology and Signal Processing 
 The project pipeline processes raw audio files through several advanced engineering steps: 
 1. **Audio Preprocessing:** Short-Time Fourier Transform (STFT) and noise reduction. 
 2. **Feature Extraction:** Extracting key audio descriptors including Mel-Frequency Cepstral Coefficients (MFCCs), Spectral Centroid, and Zero Crossing Rate. 
 3. **Model Training:** Training a Random Forest / SVM classifier to identify the unique acoustic signature of pouring water. 
+ 
+## ?? Audio Dataset and Vessel Classification 
+The acoustic models are trained to classify water pouring into 5 distinct target classes based on audio recording signatures: 
+* **Paper Cup** (`paper_pouring`) - Standard disposable paper cup with exterior print. 
+* **Glass Cup** (`glass_pouring`) - Traditional faceted transparent glass tumbler. 
+* **Green Thermos** (`thermos_pouring`) - Insulated stainless steel travel thermos. 
+* **Hard Plastic Cup** (`hard_plastic_pouring`) - Rigid plastic cup with complex resonant modes. 
+* **Thin Plastic Cup** (`thin_plastic_pouring`) - Lightweight thin-walled plastic cup with high-frequency modes. 
  
 ## ?? Experimental Results 
 * **Dataset Size:** Built from dozens of unique real-world audio recordings. 
@@ -25,9 +29,3 @@ The project pipeline processes raw audio files through several advanced engineer
 ## ?? Academic Credits 
 * **Author:** Saja Sharkia 
 * **Project Status:** Completed - Final Academic Submission (2026). 
- 
-## ?? Updated Vessel Classification 
-The dataset successfully includes the updated acoustic categories: 
-* **Hard Plastic Cup** - Formed plastic cup with complex resonant modes. 
-* **Thin Plastic Cup** - Lightweight thin-walled plastic cup with high-frequency modes. 
- 
