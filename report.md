@@ -96,6 +96,7 @@ If FULL is detected in 3 consecutive windows:
     STOP POURING
 Else:
     CONTINUE POURING
+
 ## 7. Model Evaluation (5-Fold Cross-Validation)
 Model performance was evaluated using 5-fold stratified cross-validation on all 50 recordings. StratifiedKFold preserved the 25/25 class balance in each fold. Predictions from all folds were combined to compute final metrics.
 
@@ -119,7 +120,7 @@ Model performance was evaluated using 5-fold stratified cross-validation on all 
 ### 7.2 Confusion Matrix
 
 | | Predicted: full | Predicted: half |
-| :--- | :---: | :---: |
+| :--- | :--- | :--- |
 | **Actual: full** | 23 | 2 |
 | **Actual: half** | 3 | 22 |
 
@@ -128,14 +129,14 @@ Model performance was evaluated using 5-fold stratified cross-validation on all 
 ### 7.3 Per-Class Results
 
 | Class | Precision | Recall | F1-Score | Support |
-| :--- | :---: | :---: | :---: | :---: |
+| :--- | :--- | :--- | :--- | :--- |
 | **full** | 0.88 | 0.92 | 0.90 | 25 |
 | **half** | 0.92 | 0.88 | 0.90 | 25 |
 
 ### 7.4 Top 10 MFCC Feature Importance
 
 | Rank | Feature | Importance (%) |
-| :---: | :--- | :---: |
+| :--- | :--- | :--- |
 | 1 | middle_mfcc_9_mean | 7.65% |
 | 2 | end_mfcc_4_mean | 7.62% |
 | 3 | start_mfcc_5_mean | 3.29% |
