@@ -101,6 +101,10 @@ If FULL is detected in 3 consecutive windows:
     STOP POURING
 Else:
     CONTINUE POURING
+If FULL is detected in 3 consecutive windows:
+    STOP POURING
+Else:
+    CONTINUE POURING
 
 ## 7. Model Evaluation (5-Fold Cross-Validation)
 Model performance was evaluated using 5-fold stratified cross-validation on all 50 recordings. StratifiedKFold preserved the 25/25 class balance in each fold. Predictions from all folds were combined to compute final metrics.
@@ -115,6 +119,7 @@ Model performance was evaluated using 5-fold stratified cross-validation on all 
 | **Correct predictions** | 45 / 50 |
 
 #### Model Comparison:
+
 | Model Version | Features | Accuracy |
 | :--- | :--- | :--- |
 | Baseline | 60 (global only) | 84.0% |
