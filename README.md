@@ -1,4 +1,5 @@
-![Uploading setup.png.png…]()
+
+<img width="1711" height="624" alt="setup png" src="https://github.com/user-attachments/assets/b2bbc835-25f4-4bd1-904c-a9bad01af719" />
 
 
 # Water Pouring Detection Using Classical Machine Learning
