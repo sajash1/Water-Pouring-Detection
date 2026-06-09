@@ -30,7 +30,7 @@ from sklearn.metrics import (
     precision_score,
     recall_score,
 )
-from sklearn.model_selection import StratifiedKFold, cross_val_predict
+from sklearn.model_selection import GroupKFold, StratifiedKFold, cross_val_predict
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
@@ -39,16 +39,18 @@ warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 PROJECT_DIR = Path(__file__).resolve().parent
+DATA_DIR = PROJECT_DIR / "recordings"
 FIGURES_DIR = PROJECT_DIR / "figures"
 BACKUP_DIR = PROJECT_DIR / "backup_before_temporal"
 FEATURES_CSV = PROJECT_DIR / "audio_features.csv"
 MODEL_PATH = PROJECT_DIR / "full_half_classifier.joblib"
+DECISION_MODEL_PATH = PROJECT_DIR / "pouring_decision_classifier.joblib"
 METRICS_CHART_PATH = FIGURES_DIR / "results_metrics.png"
 CONFUSION_MATRIX_PATH = FIGURES_DIR / "confusion_matrix.png"
 FEATURE_IMPORTANCE_PATH = FIGURES_DIR / "mfcc_feature_importance.png"
 SPECTROGRAM_PATH = FIGURES_DIR / "spectrogram_report.png"
 PITCH_OVER_TIME_PATH = FIGURES_DIR / "pitch_over_time.png"
-REPRESENTATIVE_AUDIO = PROJECT_DIR / "paper_full1.m4a"
+REPRESENTATIVE_AUDIO = DATA_DIR / "paper_full1.m4a"
 PREVIOUS_ACCURACY = 0.84
 
 N_MFCC = 13
@@ -57,6 +59,12 @@ MAX_SPECTROGRAM_HZ = 8000
 N_FOLDS = 5
 N_TEMPORAL_SEGMENTS = 3
 SEGMENT_NAMES = ("start", "middle", "end")
+
+# Decision-model settings: classify short windows as CONTINUE or STOP.
+WINDOW_SECONDS = 0.5
+STOP_LAST_SECONDS = 1.5
+STOP_PROB_THRESHOLD = 0.80
+STOP_CONSECUTIVE_WINDOWS = 3
 
 
 def parse_filename(filepath: Path) -> tuple[str, str]:
@@ -198,6 +206,234 @@ def extract_features(filepath: Path) -> dict[str, float]:
     features.update(extract_temporal_segment_features(y, sr))
 
     return features
+
+
+def extract_features_from_audio(y: np.ndarray, sr: int) -> dict[str, float]:
+    """Extract the same classical features from an already-loaded audio segment."""
+    if y.size == 0:
+        raise ValueError("Cannot extract features from an empty audio segment.")
+
+    mfccs = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=N_MFCC)
+    delta_mfccs = librosa.feature.delta(mfccs)
+    spectral_centroid = librosa.feature.spectral_centroid(y=y, sr=sr)[0]
+    rms_energy = librosa.feature.rms(y=y)[0]
+    zcr = librosa.feature.zero_crossing_rate(y)[0]
+    pitch_mean, pitch_std = extract_pitch(y, sr)
+
+    features: dict[str, float] = {
+        "pitch_mean": pitch_mean,
+        "pitch_std": pitch_std,
+        "spectral_centroid_mean": float(np.mean(spectral_centroid)),
+        "spectral_centroid_std": float(np.std(spectral_centroid)),
+        "energy_mean": float(np.mean(rms_energy)),
+        "energy_std": float(np.std(rms_energy)),
+        "zcr_mean": float(np.mean(zcr)),
+        "zcr_std": float(np.std(zcr)),
+    }
+
+    _add_mfcc_features(features, mfccs, "mfcc")
+    _add_mfcc_features(features, delta_mfccs, "delta_mfcc")
+    return features
+
+
+def extract_window_features(filepath: Path, window_seconds: float = WINDOW_SECONDS) -> pd.DataFrame:
+    """Split one recording into short windows and extract features from each window."""
+    y, sr = load_audio(filepath, sr=SAMPLE_RATE)
+    window_size = int(window_seconds * sr)
+    if window_size <= 0:
+        raise ValueError("window_seconds must be positive.")
+
+    rows: list[dict] = []
+    duration_seconds = len(y) / sr
+
+    for start_sample in range(0, len(y) - window_size + 1, window_size):
+        end_sample = start_sample + window_size
+        window_audio = y[start_sample:end_sample]
+        start_time = start_sample / sr
+        end_time = end_sample / sr
+        center_time = (start_time + end_time) / 2
+
+        rows.append(
+            {
+                "filename": filepath.name,
+                "window_start": start_time,
+                "window_end": end_time,
+                "window_center": center_time,
+                "duration_seconds": duration_seconds,
+                **extract_features_from_audio(window_audio, sr),
+            }
+        )
+
+    return pd.DataFrame(rows)
+
+
+def load_decision_dataset(data_dir: Path) -> pd.DataFrame:
+    """
+    Build a window-level decision dataset.
+
+    Labeling logic:
+    - windows near the end of files labeled *_full are STOP
+    - all earlier windows are CONTINUE
+    - files labeled *_half are treated as CONTINUE examples
+
+    For a stronger real project, create manual labels for the true stopping time.
+    """
+    m4a_files = sorted(data_dir.glob("*.m4a"))
+    if not m4a_files:
+        raise FileNotFoundError(f"No m4a files found in {data_dir}")
+
+    rows: list[pd.DataFrame] = []
+    for filepath in m4a_files:
+        material, recording_label = parse_filename(filepath)
+        window_df = extract_window_features(filepath, WINDOW_SECONDS)
+        window_df["material"] = material
+        window_df["recording_label"] = recording_label
+        window_df["decision_label"] = "continue"
+
+        if recording_label == "full":
+            stop_start_time = max(0.0, float(window_df["duration_seconds"].iloc[0]) - STOP_LAST_SECONDS)
+            window_df.loc[window_df["window_center"] >= stop_start_time, "decision_label"] = "stop"
+
+        rows.append(window_df)
+        print(f"  Windowed: {filepath.name} -> {len(window_df)} windows")
+
+    return pd.concat(rows, ignore_index=True)
+
+
+def evaluate_decision_model(X: pd.DataFrame, y: pd.Series, groups: pd.Series, model: Pipeline) -> dict:
+    """Evaluate the decision model while keeping windows from the same file in the same fold."""
+    n_groups = groups.nunique()
+    n_splits = min(N_FOLDS, n_groups)
+    if n_splits < 2:
+        raise ValueError("Need at least two recordings to evaluate the decision model.")
+
+    cv = GroupKFold(n_splits=n_splits)
+    y_pred = cross_val_predict(model, X, y, cv=cv.split(X, y, groups=groups))
+
+    labels = sorted(y.unique())
+    cm = confusion_matrix(y, y_pred, labels=labels)
+    report_dict = classification_report(y, y_pred, output_dict=True, zero_division=0)
+
+    return {
+        "accuracy": accuracy_score(y, y_pred),
+        "precision": precision_score(y, y_pred, average="weighted", zero_division=0),
+        "recall": recall_score(y, y_pred, average="weighted", zero_division=0),
+        "confusion_matrix": cm,
+        "labels": labels,
+        "y_true": y,
+        "y_pred": y_pred,
+        "classification_report": classification_report(y, y_pred, zero_division=0),
+        "classification_report_dict": report_dict,
+    }
+
+
+def make_stop_decision(
+    model: Pipeline,
+    feature_cols: list[str],
+    filepath: Path,
+    stop_probability_threshold: float = STOP_PROB_THRESHOLD,
+    consecutive_windows: int = STOP_CONSECUTIVE_WINDOWS,
+) -> dict:
+    """Run the window model on one recording and return the first STOP decision time."""
+    window_df = extract_window_features(filepath, WINDOW_SECONDS)
+    X = window_df[feature_cols]
+
+    classes = list(model.named_steps["classifier"].classes_)
+    if "stop" not in classes:
+        raise ValueError("The trained model does not contain a 'stop' class.")
+
+    stop_index = classes.index("stop")
+    stop_probabilities = model.predict_proba(X)[:, stop_index]
+
+    streak = 0
+    for row_index, probability in enumerate(stop_probabilities):
+        if probability >= stop_probability_threshold:
+            streak += 1
+        else:
+            streak = 0
+
+        if streak >= consecutive_windows:
+            decision_row = row_index - consecutive_windows + 1
+            return {
+                "decision": "STOP",
+                "decision_time_seconds": float(window_df.iloc[decision_row]["window_start"]),
+                "stop_probability": float(stop_probabilities[decision_row]),
+                "threshold": stop_probability_threshold,
+                "consecutive_windows": consecutive_windows,
+            }
+
+    return {
+        "decision": "CONTINUE",
+        "decision_time_seconds": None,
+        "stop_probability": float(np.max(stop_probabilities)) if len(stop_probabilities) else 0.0,
+        "threshold": stop_probability_threshold,
+        "consecutive_windows": consecutive_windows,
+    }
+
+
+def train_and_save_decision_model(data_dir: Path) -> None:
+    """Train a window-level CONTINUE/STOP model and save it."""
+    print("\n" + "=" * 60)
+    print("Window-Level Decision Model: CONTINUE vs STOP")
+    print("=" * 60)
+
+    decision_df = load_decision_dataset(data_dir)
+    decision_feature_cols = [
+        col
+        for col in decision_df.columns
+        if col not in (
+            "filename",
+            "material",
+            "recording_label",
+            "decision_label",
+            "window_start",
+            "window_end",
+            "window_center",
+            "duration_seconds",
+        )
+    ]
+
+    X_decision = decision_df[decision_feature_cols]
+    y_decision = decision_df["decision_label"]
+    groups = decision_df["filename"]
+
+    print("\nDecision-label distribution:")
+    print(y_decision.value_counts().to_string())
+    print(f"\nDecision feature count: {len(decision_feature_cols)}")
+
+    decision_model = build_model("random_forest")
+    decision_results = evaluate_decision_model(X_decision, y_decision, groups, decision_model)
+
+    print("\nDecision Model Evaluation:")
+    print(f"Accuracy:  {decision_results['accuracy']:.4f} ({decision_results['accuracy'] * 100:.1f}%)")
+    print(f"Precision: {decision_results['precision']:.4f} ({decision_results['precision'] * 100:.1f}%)")
+    print(f"Recall:    {decision_results['recall']:.4f} ({decision_results['recall'] * 100:.1f}%)")
+    print("\nConfusion Matrix:")
+    print(f"Labels: {decision_results['labels']}")
+    print(decision_results["confusion_matrix"])
+    print("\nDetailed Classification Report:")
+    print(decision_results["classification_report"])
+
+    decision_model.fit(X_decision, y_decision)
+    joblib.dump(
+        {
+            "model": decision_model,
+            "feature_columns": decision_feature_cols,
+            "labels": decision_results["labels"],
+            "window_seconds": WINDOW_SECONDS,
+            "stop_last_seconds": STOP_LAST_SECONDS,
+            "stop_probability_threshold": STOP_PROB_THRESHOLD,
+            "stop_consecutive_windows": STOP_CONSECUTIVE_WINDOWS,
+            "cv_results": {
+                "accuracy": decision_results["accuracy"],
+                "precision": decision_results["precision"],
+                "recall": decision_results["recall"],
+                "confusion_matrix": decision_results["confusion_matrix"].tolist(),
+            },
+        },
+        DECISION_MODEL_PATH,
+    )
+    print(f"\nDecision model saved to: {DECISION_MODEL_PATH}")
 
 
 def load_dataset(data_dir: Path) -> pd.DataFrame:
@@ -460,8 +696,8 @@ def main() -> None:
     FIGURES_DIR.mkdir(exist_ok=True)
     backup_existing_results()
 
-    print(f"\nScanning m4a files in: {PROJECT_DIR}")
-    df = load_dataset(PROJECT_DIR)
+    print(f"\nScanning m4a files in: {DATA_DIR}")
+    df = load_dataset(DATA_DIR)
     print(f"\nTotal samples: {len(df)}")
     print("\nLabel distribution:")
     print(df["label"].value_counts().to_string())
@@ -539,7 +775,7 @@ def main() -> None:
 
     spectrogram_source = REPRESENTATIVE_AUDIO
     if not spectrogram_source.exists():
-        spectrogram_source = next(PROJECT_DIR.glob("*.m4a"))
+        spectrogram_source = next(DATA_DIR.glob("*.m4a"))
 
     print(f"\nGenerating STFT spectrogram from: {spectrogram_source.name}")
     save_stft_spectrogram(spectrogram_source, SPECTROGRAM_PATH)
@@ -548,6 +784,10 @@ def main() -> None:
     print(f"\nGenerating pitch-over-time plot from: {spectrogram_source.name}")
     save_pitch_over_time_plot(spectrogram_source, PITCH_OVER_TIME_PATH)
     print(f"  Pitch plot saved to: {PITCH_OVER_TIME_PATH}")
+
+    # New: train a window-level decision model that can output CONTINUE/STOP.
+    # This is not real-time control, but it simulates decision-making over short audio windows.
+    train_and_save_decision_model(DATA_DIR)
 
     print("=" * 60)
 
