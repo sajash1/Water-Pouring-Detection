@@ -85,13 +85,18 @@ Random Forest handles heterogeneous feature scales well (after scaling), support
 While the primary objective of this project is full-versus-half classification, the same classifier can be used as the decision-making component of an automatic water-pouring system.
 
 The system first extracts 105 acoustic features from the recorded audio signal and classifies the recording as either full or half. The classification result is then converted into a practical pouring decision:
-* **Predicted = Half** $\rightarrow$ `CONTINUE POURING`
-* **Predicted = Full** $\rightarrow$ `STOP POURING`
+* **Predicted = Half** -> `CONTINUE POURING`
+* **Predicted = Full** -> `STOP POURING`
 
 In a real deployment, audio would be analyzed repeatedly in short time windows during pouring. Each window would be classified independently. To improve robustness against noise and occasional misclassifications, a stop command would only be issued after multiple consecutive windows are classified as full.
 
 #### Example Decision Rule:
+
 ```text
+If FULL is detected in 3 consecutive windows:
+    STOP POURING
+Else:
+    CONTINUE POURING
 If FULL is detected in 3 consecutive windows:
     STOP POURING
 Else:
