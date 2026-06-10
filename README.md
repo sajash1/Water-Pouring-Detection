@@ -1,5 +1,5 @@
 
-<img width="1711" height="624" alt="setup png" src="https://github.com/user-attachments/assets/b2bbc835-25f4-4bd1-904c-a9bad01af719" />
+<img width="1600" height="581" alt="image" src="https://github.com/user-attachments/assets/599ed687-27e0-4934-9e7c-36ce352939ba" />
 
 
 # Water Pouring Detection Using Classical Machine Learning
